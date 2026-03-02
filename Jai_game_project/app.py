@@ -9,7 +9,6 @@ from Game_engiene import get_categories, get_teams_in_category, generate_match_d
 def apply_custom_ui(image_file):
     try:
         with open(image_file, "rb") as f:
-            # We use the base64 library directly here to avoid the AttributeError
             data = base64.b64encode(f.read()).decode()
             st.markdown(f"""
                 <style>
@@ -18,13 +17,23 @@ def apply_custom_ui(image_file):
                     background-size: cover;
                     background-attachment: fixed;
                 }}
+                /* This forces a dark 'glass' tint over everything for readability */
+                .main .block-container {{
+                    background-color: rgba(0, 0, 0, 0.6);
+                    border-radius: 20px;
+                    padding: 30px;
+                    color: white !important;
+                }}
+                /* Ensures sidebar text stays white */
                 [data-testid="stSidebar"] {{
-                    background-color: rgba(0, 0, 0, 0.7) !important;
+                    background-color: rgba(0, 0, 0, 0.8) !important;
+                    color: white !important;
                 }}
                 </style>
                 """, unsafe_allow_html=True)
     except FileNotFoundError:
         st.sidebar.warning("⚠️ Background image not found!")
+        
 # --- 2. PAGE CONFIG ---
 st.set_page_config(page_title="OptiXI: 2026 Strategy Solver", layout="wide")
 # Updated path to include the subfolder
@@ -126,6 +135,7 @@ else:
     st.divider()
     st.subheader("🔍 Full Player Analytics")
     st.dataframe(df, use_container_width=True, hide_index=True)
+
 
 
 
