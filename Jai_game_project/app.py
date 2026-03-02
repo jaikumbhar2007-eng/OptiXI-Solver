@@ -2,32 +2,29 @@ import streamlit as st
 import pandas as pd
 import pulp
 import time
+import base64  # This is the missing piece!
 from Game_engiene import get_categories, get_teams_in_category, generate_match_data
 
 # --- 1. UI HELPERS ---
 def apply_custom_ui(image_file):
     try:
         with open(image_file, "rb") as f:
+            # We use the base64 library directly here to avoid the AttributeError
+            data = base64.b64encode(f.read()).decode()
             st.markdown(f"""
                 <style>
                 .stApp {{
-                    background-image: url("data:image/jpg;base64,{pd.io.common.base64.b64encode(f.read()).decode()}");
+                    background-image: url("data:image/jpg;base64,{data}");
                     background-size: cover;
                     background-attachment: fixed;
                 }}
                 [data-testid="stSidebar"] {{
                     background-color: rgba(0, 0, 0, 0.7) !important;
                 }}
-                .stMetric {{
-                    background-color: rgba(255, 255, 255, 0.1) !important;
-                    padding: 15px;
-                    border-radius: 10px;
-                }}
                 </style>
                 """, unsafe_allow_html=True)
     except FileNotFoundError:
         st.sidebar.warning("⚠️ Background image not found!")
-
 # --- 2. PAGE CONFIG ---
 st.set_page_config(page_title="OptiXI: 2026 Strategy Solver", layout="wide")
 # Updated path to include the subfolder
@@ -129,6 +126,7 @@ else:
     st.divider()
     st.subheader("🔍 Full Player Analytics")
     st.dataframe(df, use_container_width=True, hide_index=True)
+
 
 
 
