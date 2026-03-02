@@ -50,7 +50,7 @@ with st.sidebar.expander("⚖️ Privacy & Disclaimer"):
 # --- 4. MAIN INTERFACE ---
 if team_a == team_b and cat_a == cat_b:
     st.title("🏏 OptiXI Strategy Solver")
-    st.markdown("### Welcome, Jai! Optimize your 2026 Fantasy Squad.")
+    st.markdown("### Welcome, User! Optimize your 2026 Fantasy Squad.")
     
     m1, m2, m3 = st.columns(3)
     m1.metric("Algorithm Accuracy", "89.4%", "+2.1% vs 2025")
@@ -126,6 +126,7 @@ else:
     st.divider()
     st.subheader("🔍 Full Player Analytics")
     st.dataframe(df, use_container_width=True, hide_index=True)
+
 
 
 
