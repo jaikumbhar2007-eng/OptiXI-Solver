@@ -12,13 +12,11 @@ def apply_custom_ui(image_file):
             data = base64.b64encode(f.read()).decode()
             st.markdown(f"""
                 <style>
-                /* Force background image and dark overlay */
                 .stApp {{
                     background-image: url("data:image/jpg;base64,{data}");
                     background-size: cover;
                     background-attachment: fixed;
                 }}
-                /* Glassmorphism: Fixes readability in Light/Dark browser themes */
                 .main .block-container {{
                     background-color: rgba(0, 0, 0, 0.75);
                     border-radius: 20px;
@@ -28,101 +26,81 @@ def apply_custom_ui(image_file):
                 [data-testid="stSidebar"] {{
                     background-color: rgba(0, 0, 0, 0.85) !important;
                 }}
-                /* Ensure all text stays white */
-                h1, h2, h3, p, span, label {{
-                    color: white !important;
-                }}
+                h1, h2, h3, p, span, label {{ color: white !important; }}
                 </style>
                 """, unsafe_allow_html=True)
     except FileNotFoundError:
         st.sidebar.warning("⚠️ Background image not found!")
 
-# --- 2. DYNAMIC API FETCH (2026 Season) ---
+# --- 2. DYNAMIC API FETCH ---
 @st.cache_data(ttl=300) 
 def fetch_live_fixtures():
-    # Uses the RAPIDAPI_KEY from your Streamlit Secrets
     url = "https://cricket-live-score-api1.p.rapidapi.com/matches"
     headers = {
         "X-RapidAPI-Key": st.secrets["RAPIDAPI_KEY"], 
         "X-RapidAPI-Host": "cricket-live-score-api1.p.rapidapi.com"
     }
-    
     try:
         response = requests.get(url, headers=headers, timeout=10)
         data = response.json()
-        
-        live_list = []
-        # Checks both potential keys in the API response for live/upcoming games
         raw_matches = data.get('matches', []) or data.get('scorecard', [])
-        
+        live_list = []
         for m in raw_matches:
-            t1 = m.get('team_a') or m.get('team_one') or "TBD"
-            t2 = m.get('team_b') or m.get('team_two') or "TBD"
-            status = m.get('status', 'Upcoming').upper()
-            
-            live_list.append({
-                "match": f"{t1} vs {t2}",
-                "status": status,
-                "time": m.get('start_time', 'Scheduled')
-            })
-        
-        # Fallback: If API returns empty, show the big IND vs ENG Semi-final
-        if not live_list:
-            return [{"match": "IND vs ENG", "status": "UPCOMING", "time": "Mar 5 (Semi-Final)"}]
-            
-        return live_list
+            t1, t2 = m.get('team_a', 'TBD'), m.get('team_b', 'TBD')
+            live_list.append({"match": f"{t1} vs {t2}", "status": m.get('status', 'Upcoming').upper()})
+        return live_list if live_list else [{"match": "IND vs ENG", "status": "UPCOMING"}]
     except Exception:
-        # Emergency fallback for offline mode
-        return [{"match": "IND vs ENG", "status": "UPCOMING", "time": "Mar 5"}]
+        return [{"match": "IND vs ENG", "status": "UPCOMING"}]
 
 # --- 3. PAGE CONFIG ---
 st.set_page_config(page_title="OptiXI: 2026 Strategy Solver", layout="wide")
-# Ensure the path matches your GitHub folder structure
 apply_custom_ui("Jai_game_project/zoshua-colah-CYbiE2T6Xtc-unsplash.jpg")
 
-# --- 4. SIDEBAR & SESSION STATE ---
+# --- 4. SIDEBAR ---
 st.sidebar.title("🎮 Match Setup")
 cat_a = st.sidebar.selectbox("Category A", get_categories(), key="ca")
 cat_b = st.sidebar.selectbox("Category B", get_categories(), key="cb")
 
-# Manage dynamic selection via session state
 if 'ta' not in st.session_state: st.session_state.ta = get_teams_in_category(cat_a)[0]
 if 'tb' not in st.session_state: st.session_state.tb = get_teams_in_category(cat_b)[1]
 
-team_a = st.sidebar.selectbox("Team A", get_teams_in_category(cat_a), key="ta_select", 
-                             index=get_teams_in_category(cat_a).index(st.session_state.ta) if st.session_state.ta in get_teams_in_category(cat_a) else 0)
-team_b = st.sidebar.selectbox("Team B", get_teams_in_category(cat_b), key="tb_select", 
-                             index=get_teams_in_category(cat_b).index(st.session_state.tb) if st.session_state.tb in get_teams_in_category(cat_b) else 1)
-
+team_a = st.sidebar.selectbox("Team A", get_teams_in_category(cat_a), key="ta_s", index=get_teams_in_category(cat_a).index(st.session_state.ta) if st.session_state.ta in get_teams_in_category(cat_a) else 0)
+team_b = st.sidebar.selectbox("Team B", get_teams_in_category(cat_b), key="tb_s", index=get_teams_in_category(cat_b).index(st.session_state.tb) if st.session_state.tb in get_teams_in_category(cat_b) else 1)
 budget = st.sidebar.slider("Credit Limit", 80.0, 100.0, 100.0)
 
 # --- 5. MAIN INTERFACE ---
 st.title("🏆 OptiXI Live Strategy Solver")
 
-with st.expander("🔬 How it Works"):
-    st.write("OptiXI uses **Linear Programming** to solve for the mathematically highest ROI squad.")
-
-# Live Match Ticker (Automatic Updates)
+# Live Ticker
 st.markdown("### 🏟️ Active & Upcoming Matches")
 fixtures = fetch_live_fixtures()
-f_cols = st.columns(min(len(fixtures), 4)) 
-
+f_cols = st.columns(min(len(fixtures), 4))
 for i, f in enumerate(fixtures):
     with f_cols[i % 4]:
         label = "🔴 LIVE" if "LIVE" in f['status'] else "🗓️ UPCOMING"
         if st.button(f"{label}\n\n{f['match']}", key=f"fix_{i}", use_container_width=True):
             teams = f['match'].split(" vs ")
-            if len(teams) == 2:
-                st.session_state.ta, st.session_state.tb = teams[0].strip(), teams[1].strip()
-                st.rerun()
+            st.session_state.ta, st.session_state.tb = teams[0].strip(), teams[1].strip()
+            st.rerun()
 
 st.divider()
 
-# --- 6. SOLVER ENGINE ---
+# --- 6. PLAYER DATA TABLE (The "Missing" Part) ---
 df = generate_match_data(cat_a, team_a, cat_b, team_b)
 
+st.subheader(f"📊 Player Pool: {team_a} vs {team_b}")
+# Show key metrics before solving
+m1, m2, m3 = st.columns(3)
+m1.metric("Available Players", len(df))
+m2.metric("Highest ROI", df.iloc[0]['Name'] if not df.empty else "N/A")
+m3.metric("Avg Credits", f"{df['Credit_Cost'].mean():.1f}" if not df.empty else "0")
+
+# The Full Data Table
+st.dataframe(df[['Name', 'Team', 'Role', 'Credit_Cost', 'Value_Index']], use_container_width=True)
+
+# --- 7. SOLVER ---
 if st.button("⚡ GENERATE OPTIMAL XI", use_container_width=True):
-    with st.spinner("Analyzing Match Data..."):
+    with st.spinner("Calculating Optimal Squad..."):
         try:
             prob = pulp.LpProblem("FantasyTeam", pulp.LpMaximize)
             players = df['Name'].tolist()
@@ -138,29 +116,18 @@ if st.button("⚡ GENERATE OPTIMAL XI", use_container_width=True):
             selected = [p for p in players if player_vars[p].value() == 1]
             best_team = df[df['Name'].isin(selected)]
 
-            st.success(f"✅ AI Found the Best Squad! Cost: {best_team['Credit_Cost'].sum()}")
+            st.success(f"✅ AI Found the Best Squad! Total Cost: {best_team['Credit_Cost'].sum()}")
             st.table(best_team[['Name', 'Team', 'Role', 'Credit_Cost', 'Value_Index']])
             
-            # WhatsApp Share Button
-            share_text = f"Check out my Optimal XI for {team_a} vs {team_b}! 🏏\nView it here: https://optixi-solver.streamlit.app"
-            encoded_text = share_text.replace("\n", "%0A").replace(" ", "%20")
-            st.markdown(f'''<a href="https://wa.me/?text={encoded_text}" target="_blank"><button style="width:100%;background-color:#25D366;color:white;padding:12px;border:none;border-radius:10px;cursor:pointer;font-weight:bold;">📲 Share on WhatsApp</button></a>''', unsafe_allow_html=True)
+            # WhatsApp Share
+            share_text = f"My Optimal XI for {team_a} vs {team_b}! 🏏\nView: https://optixi-solver.streamlit.app"
+            st.markdown(f'''<a href="https://wa.me/?text={share_text.replace(' ', '%20')}" target="_blank"><button style="width:100%;background-color:#25D366;color:white;padding:12px;border:none;border-radius:10px;font-weight:bold;">📲 Share on WhatsApp</button></a>''', unsafe_allow_html=True)
         except Exception:
-            st.error("❌ Solver Error: Try increasing the budget slider.")
+            st.error("❌ Solver Error: Increase budget.")
 
-# --- 7. PROFESSIONAL FOOTER ---
-st.markdown("<br><br>", unsafe_allow_html=True)
-st.divider()
-st.markdown(
-    """
-    <div style="text-align: center; color: #888; font-size: 14px;">
-        <p><b>OptiXI Strategy Solver v2.5</b></p>
-        <p>Advanced Mathematical Analysis | 2026 Season</p>
-        <p style="font-style: italic;">Disclaimer: This is an analytical research tool. We do not promote gambling.</p>
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
+# --- 8. FOOTER ---
+st.markdown("<br><hr><center><b>OptiXI v2.5</b> | Advanced Analysis | 2026 Season</center>", unsafe_allow_html=True)
+
 
 
 
