@@ -23,18 +23,15 @@ def apply_custom_ui(image_file):
                     padding: 30px;
                     color: white !important;
                 }}
-                [data-testid="stSidebar"] {{
-                    background-color: rgba(0, 0, 0, 0.85) !important;
-                }}
                 </style>
                 """, unsafe_allow_html=True)
     except FileNotFoundError:
         st.sidebar.warning("⚠️ Background image not found!")
 
-# --- 2. THE REAL LIVE API FETCH ---
+# --- 2. THE FULLY DYNAMIC API FETCH ---
 @st.cache_data(ttl=300) 
 def fetch_live_fixtures():
-    # Using the exact RapidAPI key you found
+    # This uses the key you saved in Streamlit Secrets
     url = "https://cricket-live-score-api1.p.rapidapi.com/matches"
     headers = {
         "X-RapidAPI-Key": st.secrets["RAPIDAPI_KEY"], 
@@ -46,20 +43,24 @@ def fetch_live_fixtures():
         data = response.json()
         
         live_list = []
-        # Pulling real matches from the 'scorecard' data in your screenshot
-        for match in data.get('scorecard', [])[:3]: 
+        # We look for matches in the 'scorecard' or 'matches' list from your API
+        match_data = data.get('scorecard', []) or data.get('matches', [])
+        
+        for match in match_data:
+            t1 = match.get('team_a') or match.get('team_one') or "Team A"
+            t2 = match.get('team_b') or match.get('team_two') or "Team B"
+            status = match.get('status', 'UPCOMING').upper()
+            
             live_list.append({
-                "match": f"{match.get('team_a', 'TBD')} vs {match.get('team_b', 'TBD')}",
-                "status": "LIVE",
-                "time": "In Progress"
+                "match": f"{t1} vs {t2}",
+                "status": status,
+                "time": match.get('start_time', 'Scheduled')
             })
         
-        # If no live games, show the upcoming IND vs ENG Semi-final
-        if not live_list:
-            return [{"match": "IND vs ENG", "status": "UPCOMING", "time": "Mar 5 (Semi-Final)"}]
-        return live_list
+        return live_list if live_list else [{"match": "No Matches Found", "status": "EMPTY", "time": ""}]
     except Exception:
-        return [{"match": "IND vs ENG", "status": "UPCOMING", "time": "Mar 5 (Semi-Final)"}]
+        # Fallback to help you test if API is down
+        return [{"match": "IND vs ENG", "status": "UPCOMING", "time": "Mar 5"}]
 
 # --- 3. PAGE CONFIG ---
 st.set_page_config(page_title="OptiXI: 2026 Strategy Solver", layout="wide")
@@ -73,30 +74,31 @@ cat_b = st.sidebar.selectbox("Category B", get_categories(), key="cb")
 if 'ta' not in st.session_state: st.session_state.ta = get_teams_in_category(cat_a)[0]
 if 'tb' not in st.session_state: st.session_state.tb = get_teams_in_category(cat_b)[1]
 
+# Dynamic Selectors linked to Session State
 team_a = st.sidebar.selectbox("Team A", get_teams_in_category(cat_a), key="ta_select", 
                              index=get_teams_in_category(cat_a).index(st.session_state.ta) if st.session_state.ta in get_teams_in_category(cat_a) else 0)
 team_b = st.sidebar.selectbox("Team B", get_teams_in_category(cat_b), key="tb_select", 
                              index=get_teams_in_category(cat_b).index(st.session_state.tb) if st.session_state.tb in get_teams_in_category(cat_b) else 1)
+
 budget = st.sidebar.slider("Credit Limit", 80.0, 100.0, 100.0)
 
 # --- 5. MAIN INTERFACE ---
 st.title("🏆 OptiXI Live Strategy Solver")
 
-with st.expander("🔬 How it Works"):
-    st.write("OptiXI uses **Mathematical Optimization** to solve the 'Knapsack Problem' for the 2026 Season.")
-
-# Live Fixtures Ticker
-st.markdown("### 🏟️ Live & Upcoming Matches (Real-Time)")
+# Live Match Ticker (Scrolling or Grid)
+st.markdown("### 🏟️ Active & Upcoming Matches")
 fixtures = fetch_live_fixtures()
-f_cols = st.columns(len(fixtures))
-for i, f in enumerate(fixtures):
-    with f_cols[i]:
-        label = "🔴 LIVE" if f['status'] == "LIVE" else "🗓️ UPCOMING"
-        if st.button(f"{label}\n\n{f['match']}\n{f['time']}", key=f"fix_{i}", use_container_width=True):
-            teams = f['match'].split(" vs ")
-            if len(teams) == 2:
-                st.session_state.ta, st.session_state.tb = teams[0].strip(), teams[1].strip()
-                st.rerun()
+# Use a container for scrolling if there are many matches
+with st.container():
+    f_cols = st.columns(min(len(fixtures), 4)) # Show up to 4 columns
+    for i, f in enumerate(fixtures):
+        with f_cols[i % 4]:
+            label = "🔴 LIVE" if "LIVE" in f['status'] else "🗓️ UPCOMING"
+            if st.button(f"{label}\n\n{f['match']}", key=f"fix_{i}", use_container_width=True):
+                teams = f['match'].split(" vs ")
+                if len(teams) == 2:
+                    st.session_state.ta, st.session_state.tb = teams[0].strip(), teams[1].strip()
+                    st.rerun()
 
 st.divider()
 
@@ -104,7 +106,7 @@ st.divider()
 df = generate_match_data(cat_a, team_a, cat_b, team_b)
 
 if st.button("⚡ GENERATE OPTIMAL XI", use_container_width=True):
-    with st.spinner("Analyzing Match Data..."):
+    with st.spinner("Analyzing..."):
         try:
             prob = pulp.LpProblem("FantasyTeam", pulp.LpMaximize)
             players = df['Name'].tolist()
@@ -120,7 +122,7 @@ if st.button("⚡ GENERATE OPTIMAL XI", use_container_width=True):
             selected = [p for p in players if player_vars[p].value() == 1]
             best_team = df[df['Name'].isin(selected)]
 
-            st.success(f"✅ AI Found the Best Squad! Cost: {best_team['Credit_Cost'].sum()}")
+            st.success(f"✅ AI Optimal Team Found! Cost: {best_team['Credit_Cost'].sum()}")
             st.table(best_team[['Name', 'Team', 'Role', 'Credit_Cost', 'Value_Index']])
             
             # WhatsApp Share
@@ -133,18 +135,7 @@ if st.button("⚡ GENERATE OPTIMAL XI", use_container_width=True):
 # --- 7. FOOTER ---
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.divider()
-st.markdown(
-    """
-    <div style="text-align: center; color: #aaa; font-size: 14px;">
-        <p><b>OptiXI Strategy Solver v2.5</b></p>
-        <p>Advanced Mathematical Analysis | 2026 Season</p>
-        <p style="font-style: italic;">Disclaimer: This is an analytical research tool. We do not promote gambling.</p>
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
-
-
+st.markdown("<div style='text-align: center; color: #888; font-size: 14px;'><p><b>OptiXI Strategy Solver v2.5</b></p><p>Advanced Mathematical Analysis | 2026 Season</p></div>", unsafe_allow_html=True)
 
 
 
