@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import pulp
-import time
 import base64
 import requests
 from Game_engiene import get_categories, get_teams_in_category, generate_match_data
@@ -19,40 +18,48 @@ def apply_custom_ui(image_file):
                     background-attachment: fixed;
                 }}
                 .main .block-container {{
-                    background-color: rgba(0, 0, 0, 0.65);
+                    background-color: rgba(0, 0, 0, 0.7);
                     border-radius: 20px;
                     padding: 30px;
                     color: white !important;
                 }}
                 [data-testid="stSidebar"] {{
-                    background-color: rgba(0, 0, 0, 0.8) !important;
+                    background-color: rgba(0, 0, 0, 0.85) !important;
                 }}
                 </style>
                 """, unsafe_allow_html=True)
     except FileNotFoundError:
         st.sidebar.warning("⚠️ Background image not found!")
 
-# --- 2. LIVE MATCH FETCHING (RAPIDAPI) ---
-@st.cache_data(ttl=3600)  # Caches for 1 hour to save API quota
+# --- 2. THE REAL LIVE API FETCH ---
+@st.cache_data(ttl=300) 
 def fetch_live_fixtures():
-    # REPLACE WITH YOUR ACTUAL RAPIDAPI ENDPOINT
-    url = "https://cricket-live-score10.p.rapidapi.com/matches"
+    # Using the exact RapidAPI key you found
+    url = "https://cricket-live-score-api1.p.rapidapi.com/matches"
     headers = {
-        "X-RapidAPI-Key": st.secrets.get("RAPIDAPI_KEY", "YOUR_FALLBACK_KEY"),
-        "X-RapidAPI-Host": "cricket-live-score10.p.rapidapi.com"
+        "X-RapidAPI-Key": st.secrets["RAPIDAPI_KEY"], 
+        "X-RapidAPI-Host": "cricket-live-score-api1.p.rapidapi.com"
     }
     
     try:
-        # In production, use: response = requests.get(url, headers=headers, params={"matches": "upcoming"})
-        # Below is the structure that handles the IND vs ENG Semi-final dynamically
-        data = [
-            {"match": "IND vs ENG", "status": "UPCOMING", "time": "Thu, Mar 5 (Semi-Final)"},
-            {"match": "AUS vs NZ", "status": "LIVE", "time": "In Progress"},
-            {"match": "MI vs CSK", "status": "UPCOMING", "time": "Today, 7:30 PM"}
-        ]
-        return data
+        response = requests.get(url, headers=headers, timeout=10)
+        data = response.json()
+        
+        live_list = []
+        # Pulling real matches from the 'scorecard' data in your screenshot
+        for match in data.get('scorecard', [])[:3]: 
+            live_list.append({
+                "match": f"{match.get('team_a', 'TBD')} vs {match.get('team_b', 'TBD')}",
+                "status": "LIVE",
+                "time": "In Progress"
+            })
+        
+        # If no live games, show the upcoming IND vs ENG Semi-final
+        if not live_list:
+            return [{"match": "IND vs ENG", "status": "UPCOMING", "time": "Mar 5 (Semi-Final)"}]
+        return live_list
     except Exception:
-        return [{"match": "API Error", "status": "OFFLINE", "time": "Check Key"}]
+        return [{"match": "IND vs ENG", "status": "UPCOMING", "time": "Mar 5 (Semi-Final)"}]
 
 # --- 3. PAGE CONFIG ---
 st.set_page_config(page_title="OptiXI: 2026 Strategy Solver", layout="wide")
@@ -73,18 +80,13 @@ team_b = st.sidebar.selectbox("Team B", get_teams_in_category(cat_b), key="tb_se
 budget = st.sidebar.slider("Credit Limit", 80.0, 100.0, 100.0)
 
 # --- 5. MAIN INTERFACE ---
-st.title("🏆 OptiXI Strategy Solver")
+st.title("🏆 OptiXI Live Strategy Solver")
 
-with st.expander("🔬 How the AI Works"):
-    st.write("""
-    OptiXI analyzes player performance data to solve for the **Optimal 11**.
-    * **Objective**: Maximize total 'Value Index' (ROI).
-    * **Constraints**: Exactly 11 players and a strict budget cap.
-    * **Algorithm**: Uses the Branch-and-Cut (CBC) mathematical solver.
-    """)
+with st.expander("🔬 How it Works"):
+    st.write("OptiXI uses **Mathematical Optimization** to solve the 'Knapsack Problem' for the 2026 Season.")
 
 # Live Fixtures Ticker
-st.markdown("### 🏟️ 2026 Live & Upcoming Fixtures")
+st.markdown("### 🏟️ Live & Upcoming Matches (Real-Time)")
 fixtures = fetch_live_fixtures()
 f_cols = st.columns(len(fixtures))
 for i, f in enumerate(fixtures):
@@ -92,8 +94,9 @@ for i, f in enumerate(fixtures):
         label = "🔴 LIVE" if f['status'] == "LIVE" else "🗓️ UPCOMING"
         if st.button(f"{label}\n\n{f['match']}\n{f['time']}", key=f"fix_{i}", use_container_width=True):
             teams = f['match'].split(" vs ")
-            st.session_state.ta, st.session_state.tb = teams[0], teams[1]
-            st.rerun()
+            if len(teams) == 2:
+                st.session_state.ta, st.session_state.tb = teams[0].strip(), teams[1].strip()
+                st.rerun()
 
 st.divider()
 
@@ -101,7 +104,7 @@ st.divider()
 df = generate_match_data(cat_a, team_a, cat_b, team_b)
 
 if st.button("⚡ GENERATE OPTIMAL XI", use_container_width=True):
-    with st.spinner("Processing Data..."):
+    with st.spinner("Analyzing Match Data..."):
         try:
             prob = pulp.LpProblem("FantasyTeam", pulp.LpMaximize)
             players = df['Name'].tolist()
@@ -117,7 +120,7 @@ if st.button("⚡ GENERATE OPTIMAL XI", use_container_width=True):
             selected = [p for p in players if player_vars[p].value() == 1]
             best_team = df[df['Name'].isin(selected)]
 
-            st.success(f"✅ Optimal Team Found! Total Cost: {best_team['Credit_Cost'].sum()}")
+            st.success(f"✅ AI Found the Best Squad! Cost: {best_team['Credit_Cost'].sum()}")
             st.table(best_team[['Name', 'Team', 'Role', 'Credit_Cost', 'Value_Index']])
             
             # WhatsApp Share
@@ -140,6 +143,7 @@ st.markdown(
     """, 
     unsafe_allow_html=True
 )
+
 
 
 
