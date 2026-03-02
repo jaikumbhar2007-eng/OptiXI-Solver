@@ -83,7 +83,7 @@ def apply_custom_ui(image_file):
 
 # --- 3. PAGE CONFIG ---
 st.set_page_config(page_title="OptiXI: 2026 Strategy Solver", layout="wide")
-apply_custom_ui("zoshua-colah-CYbiE2T6Xtc-unsplash.jpg")
+apply_custom_ui("Jai_game_project/zoshua-colah-CYbiE2T6Xtc-unsplash.jpg")
 
 # --- 4. SIDEBAR SETUP ---
 st.sidebar.title("🎮 Match Setup")
@@ -182,4 +182,5 @@ else:
     # --- FULL PLAYER ANALYTICS TABLE ---
     st.divider()
     st.subheader("🔍 Full Player Analytics")
+
     st.dataframe(df, use_container_width=True, hide_index=True)
