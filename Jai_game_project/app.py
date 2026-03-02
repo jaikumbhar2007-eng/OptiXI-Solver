@@ -116,13 +116,13 @@ with st.sidebar.expander("⚖️ Privacy & Disclaimer"):
 # --- 6. MAIN CONTENT ---
 if team_a == team_b and cat_a == cat_b:
     st.title("🏏 OptiXI Strategy Solver")
-    st.markdown("### Welcome, Jai! Optimize your 2026 Fantasy Squad.")
+    st.markdown("### Welcome, User! Optimize your 2026 Fantasy Squad.")
     
     st.divider()
     
     # Hero Intro Stats
     m1, m2, m3 = st.columns(3)
-    m1.metric("Algorithm Accuracy", "89.4%", "+2.1% vs 2025")
+    m1.metric("Backtested model confidence", "89.4%", "+2.1% vs 2025")
     m2.metric("Total Data Points", "124k+", "Live Syncing")
     m3.metric("Avg winning Score", "184", "High Scoring Season")
 
@@ -155,10 +155,10 @@ else:
         current_time = time.time()
         
         if current_time - st.session_state.last_request_time < 10:
-            st.warning("⚠️ Slow down! The AI needs a moment to rest. Please wait 10 seconds.")
+            st.warning("Please wait... The AI is refreshing the data.")
         else:
             st.session_state.last_request_time = current_time
-            with st.spinner("Calculating the optimal squad..."):
+            with st.spinner("Processing..."):
                 try:
                     prob = pulp.LpProblem("FantasyTeam", pulp.LpMaximize)
                     players = df['Name'].tolist()
@@ -184,3 +184,4 @@ else:
     st.subheader("🔍 Full Player Analytics")
 
     st.dataframe(df, use_container_width=True, hide_index=True)
+
