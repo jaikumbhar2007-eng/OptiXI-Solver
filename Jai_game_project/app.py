@@ -35,23 +35,31 @@ def apply_custom_ui(image_file):
 # --- 2. DYNAMIC API FETCH ---
 @st.cache_data(ttl=300) 
 def fetch_live_fixtures():
+    # We now try to pull both LIVE and UPCOMING to ensure nothing is missed
     url = "https://cricket-live-score-api1.p.rapidapi.com/matches"
     headers = {
         "X-RapidAPI-Key": st.secrets["RAPIDAPI_KEY"], 
         "X-RapidAPI-Host": "cricket-live-score-api1.p.rapidapi.com"
     }
+    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        # Some APIs allow passing a status parameter to get everything
+        response = requests.get(url, headers=headers, params={"status": "live,upcoming"}, timeout=10)
         data = response.json()
-        raw_matches = data.get('matches', []) or data.get('scorecard', [])
+        
+        # Merge all available match lists
+        raw_matches = data.get('matches', []) + data.get('scorecard', []) + data.get('upcoming', [])
+        
         live_list = []
         for m in raw_matches:
             t1, t2 = m.get('team_a', 'TBD'), m.get('team_b', 'TBD')
-            live_list.append({"match": f"{t1} vs {t2}", "status": m.get('status', 'Upcoming').upper()})
+            status = m.get('status', 'Upcoming').upper()
+            live_list.append({"match": f"{t1} vs {t2}", "status": status})
+        
         return live_list if live_list else [{"match": "IND vs ENG", "status": "UPCOMING"}]
     except Exception:
         return [{"match": "IND vs ENG", "status": "UPCOMING"}]
-
+        
 # --- 3. PAGE CONFIG ---
 st.set_page_config(page_title="OptiXI: 2026 Strategy Solver", layout="wide")
 apply_custom_ui("Jai_game_project/zoshua-colah-CYbiE2T6Xtc-unsplash.jpg")
@@ -127,6 +135,7 @@ if st.button("⚡ GENERATE OPTIMAL XI", use_container_width=True):
 
 # --- 8. FOOTER ---
 st.markdown("<br><hr><center><b>OptiXI v2.5</b> | Advanced Analysis | 2026 Season</center>", unsafe_allow_html=True)
+
 
 
 
